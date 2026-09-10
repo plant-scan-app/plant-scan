@@ -3,11 +3,22 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/plant_identification.dart';
 import '../models/scan_record.dart';
+
+/// Raised when a scan cannot be written to disk.
+class ScanStorageException implements Exception {
+  const ScanStorageException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'ScanStorageException: $message';
+}
 
 /// Saved scans, kept as photo files plus a JSON index in the app's documents
 /// directory. No database — the collection is small, always read whole, and
@@ -70,13 +81,29 @@ class ScanRepository extends ChangeNotifier {
     required Uint8List jpegBytes,
     required PlantIdentification identification,
   }) async {
-    _root ??= await getApplicationDocumentsDirectory();
+    final String id;
+    final String fileName;
 
-    final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final fileName = '$id.jpg';
-    final file = File(p.join(_root!.path, _imageDirName, fileName));
-    await file.parent.create(recursive: true);
-    await file.writeAsBytes(jpegBytes, flush: true);
+    try {
+      _root ??= await getApplicationDocumentsDirectory();
+
+      id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      fileName = '$id.jpg';
+      final file = File(p.join(_root!.path, _imageDirName, fileName));
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(jpegBytes, flush: true);
+    } on MissingPluginException {
+      // path_provider has no web implementation, so a browser build cannot
+      // keep anything. Identification still works.
+      throw const ScanStorageException(
+        'Saving needs the phone app — the web preview has nowhere to store '
+        'photos.',
+      );
+    } on FileSystemException catch (error) {
+      throw ScanStorageException(
+        'Could not save the photo: ${error.osError?.message ?? 'disk error'}.',
+      );
+    }
 
     final record = ScanRecord(
       id: id,

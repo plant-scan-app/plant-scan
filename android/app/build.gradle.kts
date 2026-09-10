@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.plantscanai.plant_scan"
+    namespace = "com.ongama.plantscan"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

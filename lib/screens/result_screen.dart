@@ -5,11 +5,13 @@ import 'package:intl/intl.dart';
 
 import '../models/plant_identification.dart';
 import '../models/scan_record.dart';
+import '../services/backend_client.dart';
 import '../services/identifier_config.dart';
 import '../services/plant_identifier.dart';
 import '../services/scan_repository.dart';
 import '../theme.dart';
 import '../widgets/care_grid.dart';
+import '../widgets/monetisation_widgets.dart';
 import '../widgets/scan_tile.dart';
 import '../widgets/verdict_widgets.dart';
 
@@ -37,6 +39,7 @@ class _ResultScreenState extends State<ResultScreen> {
   String? _errorMessage;
   bool _identifying = false;
   bool _saving = false;
+  bool _quotaBlocked = false;
 
   @override
   void initState() {
@@ -53,6 +56,7 @@ class _ResultScreenState extends State<ResultScreen> {
     setState(() {
       _identifying = true;
       _errorMessage = null;
+      _quotaBlocked = false;
     });
 
     try {
@@ -60,6 +64,14 @@ class _ResultScreenState extends State<ResultScreen> {
       if (!mounted) return;
       setState(() {
         _result = result;
+        _identifying = false;
+      });
+    } on QuotaExhaustedException {
+      // Nothing was charged and no photo was wasted — the server refused
+      // before spending a call. Offer the two ways forward.
+      if (!mounted) return;
+      setState(() {
+        _quotaBlocked = true;
         _identifying = false;
       });
     } on IdentificationException catch (exception) {
@@ -82,18 +94,27 @@ class _ResultScreenState extends State<ResultScreen> {
     if (result == null || _saving) return;
 
     setState(() => _saving = true);
-    final record = await ScanRepository.instance.save(
-      jpegBytes: widget.bytes!,
-      identification: result,
-    );
-    if (!mounted) return;
-    setState(() {
-      _saved = record;
-      _saving = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved to My plants')),
-    );
+
+    try {
+      final record = await ScanRepository.instance.save(
+        jpegBytes: widget.bytes!,
+        identification: result,
+      );
+      if (!mounted) return;
+      setState(() {
+        _saved = record;
+        _saving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to My plants')),
+      );
+    } on ScanStorageException catch (exception) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(exception.message)),
+      );
+    }
   }
 
   Future<void> _rename() async {
@@ -225,6 +246,8 @@ class _ResultScreenState extends State<ResultScreen> {
   Widget _body(BuildContext context) {
     if (_identifying) return const _Working();
 
+    if (_quotaBlocked) return _QuotaWall(onGranted: _identify);
+
     if (_errorMessage != null) {
       return _Problem(message: _errorMessage!, onRetry: _identify);
     }
@@ -238,6 +261,35 @@ class _ResultScreenState extends State<ResultScreen> {
       record: _saved,
       saving: _saving,
       onSave: widget.bytes == null ? null : _save,
+    );
+  }
+}
+
+/// Shown when the daily limit is reached. The photo is still on screen above,
+/// so it is clear what is waiting rather than being thrown away.
+class _QuotaWall extends StatelessWidget {
+  const _QuotaWall({required this.onGranted});
+
+  final VoidCallback onGranted;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("That's today's scans used", style: text.headlineSmall),
+        const SizedBox(height: 8),
+        Text(
+          'Your free scans reset tomorrow. This photo is still here — earn '
+          'more scans or lift the limit and it will be identified straight '
+          'away.',
+          style: text.bodyLarge?.copyWith(color: Botanic.inkSoft),
+        ),
+        const SizedBox(height: 22),
+        QuotaActions(onGranted: onGranted),
+      ],
     );
   }
 }
