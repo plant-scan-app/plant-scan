@@ -1,4 +1,6 @@
+import 'backend_client.dart';
 import 'claude_plant_identifier.dart';
+import 'entitlements.dart';
 import 'gemini_plant_identifier.dart';
 import 'plant_identifier.dart';
 import 'sample_plant_identifier.dart';
@@ -8,35 +10,43 @@ import 'sample_plant_identifier.dart';
 ///
 /// Whichever of these is set decides the backend, in this order:
 ///
-///   IDENTIFY_PROXY_URL   your own server, which holds the key  (best)
-///   GEMINI_API_KEY       Google Gemini, direct
-///   ANTHROPIC_API_KEY    Claude, direct
+///   BACKEND_URL          your Worker: holds the key, meters the free tier,
+///                        verifies subscriptions              (ship this one)
+///   GEMINI_API_KEY       Gemini direct, no metering           (development)
+///   ANTHROPIC_API_KEY    Claude direct, no metering           (development)
 ///   nothing              canned sample results
-const String _proxyUrl = String.fromEnvironment('IDENTIFY_PROXY_URL');
+///
+/// Only BACKEND_URL is fit to release. A key passed to a release build is
+/// embedded in the binary and can be extracted from the APK, and a scan limit
+/// enforced on the device is bypassed by clearing app data.
+const String _backendUrl = String.fromEnvironment('BACKEND_URL');
 const String _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
 const String _anthropicKey = String.fromEnvironment('ANTHROPIC_API_KEY');
-
-/// Which backend the proxy speaks to, so the app knows how to read the reply.
-/// Either 'gemini' or 'claude'.
-const String _proxyFlavour = String.fromEnvironment(
-  'IDENTIFY_PROXY_FLAVOUR',
-  defaultValue: 'gemini',
-);
 
 /// Optional override, since model names on both APIs change often.
 const String _modelOverride = String.fromEnvironment('IDENTIFY_MODEL');
 
 /// True when the app is running on canned sample data.
 bool get usingSampleData =>
-    _proxyUrl.isEmpty && _geminiKey.isEmpty && _anthropicKey.isEmpty;
+    _backendUrl.isEmpty && _geminiKey.isEmpty && _anthropicKey.isEmpty;
+
+/// True when scans are metered and the paywall is live.
+bool get usingBackend => _backendUrl.isNotEmpty;
 
 final PlantIdentifier plantIdentifier = _build();
 
 PlantIdentifier _build() {
-  if (_proxyUrl.isNotEmpty) {
-    return _proxyFlavour == 'claude'
-        ? ClaudePlantIdentifier(endpoint: _proxyUrl)
-        : GeminiPlantIdentifier.throughProxy(endpoint: _proxyUrl);
+  if (_backendUrl.isNotEmpty) {
+    final backend = BackendClient(baseUrl: _backendUrl);
+
+    // The entitlement service needs the same client, so the quota that comes
+    // back with every identification updates the UI.
+    EntitlementService.instance = EntitlementService(backend: backend);
+
+    return BackendPlantIdentifier(
+      backend: backend,
+      entitlements: EntitlementService.instance,
+    );
   }
 
   if (_geminiKey.isNotEmpty) {

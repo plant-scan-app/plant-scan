@@ -1,4 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Needed so the camera package can open the device camera. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Declares the app needs a camera. If you also want the app installable
+         on camera-less devices (e.g. some tablets) that only use gallery
+         picking via image_picker, change this to android:required="false". -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
     <application
         android:label="PlantScan"
         android:name="${applicationName}"
@@ -17,23 +28,28 @@
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
             <meta-data
-
-              android:name="com.google.android.gms.ads.APPLICATION_ID"
-              android:value="ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY"
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- AdMob App ID. Must be a direct child of <application>, not <activity>,
+             or the SDK's ContentProvider cannot find it and the app crashes on launch.
+             This is Google's public TEST App ID - swap for your real one before release. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.

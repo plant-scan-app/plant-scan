@@ -3,10 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../services/device_cameras.dart';
+import '../services/ads_service.dart';
+import '../services/entitlements.dart';
 import '../services/identifier_config.dart';
 import '../services/photo_source.dart';
 import '../services/scan_repository.dart';
 import '../theme.dart';
+import '../widgets/monetisation_widgets.dart';
 import '../widgets/scan_tile.dart';
 import 'camera_screen.dart';
 import 'result_screen.dart';
@@ -22,18 +25,21 @@ class HomeScreen extends StatelessWidget {
     final bytes = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(builder: (_) => const CameraScreen()),
     );
-    if (bytes != null && context.mounted) _showResult(context, bytes);
+    if (bytes != null && context.mounted) await _showResult(context, bytes);
   }
 
   Future<void> _openLibrary(BuildContext context) async {
     final bytes = await pickPhotoFromLibrary();
-    if (bytes != null && context.mounted) _showResult(context, bytes);
+    if (bytes != null && context.mounted) await _showResult(context, bytes);
   }
 
-  void _showResult(BuildContext context, Uint8List bytes) {
-    Navigator.of(context).push(
+  Future<void> _showResult(BuildContext context, Uint8List bytes) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ResultScreen.fromCapture(bytes)),
     );
+
+    // After the result has been read and closed — never before it appears.
+    AdsService.instance.noteResultDismissed();
   }
 
   @override
@@ -74,6 +80,10 @@ class HomeScreen extends StatelessWidget {
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('Choose a photo'),
                 ),
+                if (usingBackend) ...[
+                  const SizedBox(height: 20),
+                  const QuotaBar(),
+                ],
                 if (usingSampleData) ...[
                   const SizedBox(height: 20),
                   const _SampleDataNotice(),

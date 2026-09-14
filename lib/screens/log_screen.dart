@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/scan_repository.dart';
 import '../theme.dart';
+import '../widgets/monetisation_widgets.dart';
 import '../widgets/scan_tile.dart';
 import 'result_screen.dart';
 
@@ -13,6 +14,7 @@ class LogScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My plants')),
+      bottomNavigationBar: const SafeArea(child: AdBanner()),
       body: ListenableBuilder(
         listenable: ScanRepository.instance,
         builder: (context, _) {
